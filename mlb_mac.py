@@ -27,7 +27,7 @@ def get_sklearn_components():
 
 # Configure Streamlit
 st.set_page_config(
-    page_title="MAC Baseball Analytics",
+    page_title="MAC: Matchup Analysis Calculator",
     page_icon="⚾",
     layout="wide",
     initial_sidebar_state="expanded"
