@@ -1367,7 +1367,7 @@ def get_database_manager():
 
 def main():
     st.title("⚾ MAC: Matchup Analysis Calculator")
-    st.markdown("**Complete MAC Implementation** - All original logic preserved with step-by-step transparency")
+    #st.markdown("**Complete MAC Implementation** - All original logic preserved with step-by-step transparency")
     
     # Initialize database
     try:
