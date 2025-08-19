@@ -1403,8 +1403,8 @@ def main():
         
         st.header("Analysis Parameters")
         st.metric("Distance Threshold", f"{distance_threshold}")
-        st.metric("Scanning Features", "6 features")
-        st.metric("Clustering Features", "4 features")
+        st.metric("Scanning Features", "7 features")
+        st.metric("Clustering Features", "5 features")
     
     # Get available options
     with st.spinner("Loading available players..."):
