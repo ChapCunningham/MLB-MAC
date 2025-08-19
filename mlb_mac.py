@@ -1366,7 +1366,7 @@ def get_database_manager():
     return DatabaseManager()
 
 def main():
-    st.title("⚾ MAC Baseball Analytics")
+    st.title("⚾ MAC: Matchup Analysis Calculator")
     st.markdown("**Complete MAC Implementation** - All original logic preserved with step-by-step transparency")
     
     # Initialize database
