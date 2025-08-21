@@ -895,7 +895,7 @@ def run_silent_mac_analysis(pitcher_name, target_hitters, db_manager):
 
 from scipy.stats import gaussian_kde
 
-def compute_heatmap_stats(df, metric_col, min_samples=3, smoothness = 2):
+def compute_heatmap_stats(df, metric_col, min_samples=3, smoothness = 0.3):
     """Compute heatmap statistics using KDE for smoother appearance"""
     valid = df[["plate_x", "plate_z", metric_col]].dropna()
     if len(valid) < min_samples:
