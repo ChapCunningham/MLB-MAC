@@ -895,7 +895,7 @@ def run_silent_mac_analysis(pitcher_name, target_hitters, db_manager):
 
 from scipy.stats import gaussian_kde
 
-def compute_heatmap_stats(df, metric_col, min_samples=3):
+def compute_heatmap_stats(df, metric_col, min_samples=3, smoothness = 0.5):
     """Compute heatmap statistics using KDE for smoother appearance"""
     valid = df[["plate_x", "plate_z", metric_col]].dropna()
     if len(valid) < min_samples:
@@ -911,7 +911,7 @@ def compute_heatmap_stats(df, metric_col, min_samples=3):
         
         if len(valid) >= 5:
             # Create KDE from pitch locations
-            kde = gaussian_kde(points.T)
+            kde = gaussian_kde(points.T, bw_method = smoothness)
             positions = np.vstack([X.ravel(), Y.ravel()])
             density = np.reshape(kde(positions).T, X.shape)
             
