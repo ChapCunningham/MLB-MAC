@@ -909,31 +909,35 @@ def compute_heatmap_stats(df, metric_col, min_samples=3):
         points = valid[["plate_x", "plate_z"]].values
         values = valid[metric_col].values
         
-        # NEW: Use KDE instead of griddata + gaussian_filter
-        if len(valid) >= 5:  # Need minimum points for KDE
+        if len(valid) >= 5:
             # Create KDE from pitch locations
             kde = gaussian_kde(points.T)
             positions = np.vstack([X.ravel(), Y.ravel()])
             density = np.reshape(kde(positions).T, X.shape)
             
-            # Weight the density by the metric values
-            avg_metric_value = np.mean(values)
-            Z_smooth = density * avg_metric_value
+            # BETTER SCALING: Normalize density and scale by metric range
+            density_normalized = (density - density.min()) / (density.max() - density.min())
+            metric_range = values.max() - values.min() if len(values) > 1 else 1
+            metric_center = np.mean(values)
+            
+            # Scale the normalized density to metric values
+            Z_smooth = density_normalized * metric_range + metric_center
+            
         else:
-            # Fallback to original method for very small samples
+            # Fallback to original method
             Z = griddata(points, values, (X, Y), method='linear', fill_value=0)
             Z_smooth = ndimage.gaussian_filter(Z, sigma=1.0, mode='constant', cval=0)
 
-        # Keep the existing masking logic
+        # Keep existing masking logic but with looser threshold
         mask = np.zeros_like(Z_smooth)
         for i in range(len(x_range)):
             for j in range(len(y_range)):
                 dist = np.sqrt((points[:, 0] - x_range[i])**2 + (points[:, 1] - y_range[j])**2)
-                if np.min(dist) < 0.8:
+                if np.min(dist) < 1.2:  # INCREASED from 0.8 to 1.2
                     mask[j, i] = 1
 
         Z_smooth *= mask
-        Z_smooth[Z_smooth < 0.01] = 0
+        Z_smooth[Z_smooth < 0.001] = 0  # REDUCED threshold from 0.01 to 0.001
         return x_range, y_range, Z_smooth
         
     except Exception as e:
