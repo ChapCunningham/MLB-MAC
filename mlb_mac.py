@@ -933,7 +933,7 @@ def compute_heatmap_stats(df, metric_col, min_samples=3):
         for i in range(len(x_range)):
             for j in range(len(y_range)):
                 dist = np.sqrt((points[:, 0] - x_range[i])**2 + (points[:, 1] - y_range[j])**2)
-                if np.min(dist) < 1.2:  # INCREASED from 0.8 to 1.2
+                if np.min(dist) < 1:  # INCREASED from 0.8 to 1.2
                     mask[j, i] = 1
 
         Z_smooth *= mask
