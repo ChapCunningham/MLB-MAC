@@ -893,8 +893,10 @@ def run_silent_mac_analysis(pitcher_name, target_hitters, db_manager):
     
     return pd.DataFrame(results), pd.DataFrame(group_breakdown), df
 
+from scipy.stats import gaussian_kde
+
 def compute_heatmap_stats(df, metric_col, min_samples=3):
-    """Compute heatmap statistics for zone analysis"""
+    """Compute heatmap statistics using KDE for smoother appearance"""
     valid = df[["plate_x", "plate_z", metric_col]].dropna()
     if len(valid) < min_samples:
         return None, None, None
@@ -906,17 +908,23 @@ def compute_heatmap_stats(df, metric_col, min_samples=3):
     try:
         points = valid[["plate_x", "plate_z"]].values
         values = valid[metric_col].values
-        Z = griddata(points, values, (X, Y), method='linear', fill_value=0)
-
-        if len(valid) < 10:
-            sigma = 0.5
-        elif len(valid) < 25:
-            sigma = 1.0
+        
+        # NEW: Use KDE instead of griddata + gaussian_filter
+        if len(valid) >= 5:  # Need minimum points for KDE
+            # Create KDE from pitch locations
+            kde = gaussian_kde(points.T)
+            positions = np.vstack([X.ravel(), Y.ravel()])
+            density = np.reshape(kde(positions).T, X.shape)
+            
+            # Weight the density by the metric values
+            avg_metric_value = np.mean(values)
+            Z_smooth = density * avg_metric_value
         else:
-            sigma = 1.5
+            # Fallback to original method for very small samples
+            Z = griddata(points, values, (X, Y), method='linear', fill_value=0)
+            Z_smooth = ndimage.gaussian_filter(Z, sigma=1.0, mode='constant', cval=0)
 
-        Z_smooth = ndimage.gaussian_filter(Z, sigma=sigma, mode='constant', cval=0)
-
+        # Keep the existing masking logic
         mask = np.zeros_like(Z_smooth)
         for i in range(len(x_range)):
             for j in range(len(y_range)):
@@ -927,6 +935,7 @@ def compute_heatmap_stats(df, metric_col, min_samples=3):
         Z_smooth *= mask
         Z_smooth[Z_smooth < 0.01] = 0
         return x_range, y_range, Z_smooth
+        
     except Exception as e:
         st.error(f"Heatmap error: {e}")
         return None, None, None
