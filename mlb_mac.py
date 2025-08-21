@@ -895,8 +895,8 @@ def run_silent_mac_analysis(pitcher_name, target_hitters, db_manager):
 
 from scipy.stats import gaussian_kde
 
-def compute_heatmap_stats(df, metric_col, min_samples=3, smoothness = 0.3):
-    """Compute heatmap statistics using KDE for smoother appearance"""
+def compute_heatmap_stats(df, metric_col, min_samples=3):
+    """Compute heatmap statistics using better smoothing"""
     valid = df[["plate_x", "plate_z", metric_col]].dropna()
     if len(valid) < min_samples:
         return None, None, None
@@ -909,35 +909,29 @@ def compute_heatmap_stats(df, metric_col, min_samples=3, smoothness = 0.3):
         points = valid[["plate_x", "plate_z"]].values
         values = valid[metric_col].values
         
-        if len(valid) >= 5:
-            # Create KDE from pitch locations
-            kde = gaussian_kde(points.T, bw_method = smoothness)
-            positions = np.vstack([X.ravel(), Y.ravel()])
-            density = np.reshape(kde(positions).T, X.shape)
-            
-            # BETTER SCALING: Normalize density and scale by metric range
-            density_normalized = (density - density.min()) / (density.max() - density.min())
-            metric_range = values.max() - values.min() if len(values) > 1 else 1
-            metric_center = np.mean(values)
-            
-            # Scale the normalized density to metric values
-            Z_smooth = density_normalized * metric_range + metric_center
-            
+        # BACK TO GRIDDATA but with much heavier smoothing for KDE-like appearance
+        Z = griddata(points, values, (X, Y), method='linear', fill_value=0)
+        
+        # MUCH HEAVIER smoothing to get KDE-like appearance
+        if len(valid) < 10:
+            sigma = 2.0      # Heavy smoothing
+        elif len(valid) < 25:
+            sigma = 3.0      # Very heavy smoothing  
         else:
-            # Fallback to original method
-            Z = griddata(points, values, (X, Y), method='linear', fill_value=0)
-            Z_smooth = ndimage.gaussian_filter(Z, sigma=1.0, mode='constant', cval=0)
+            sigma = 4.0      # Maximum smoothing
+            
+        Z_smooth = ndimage.gaussian_filter(Z, sigma=sigma, mode='constant', cval=0)
 
-        # Keep existing masking logic but with looser threshold
+        # Keep existing masking
         mask = np.zeros_like(Z_smooth)
         for i in range(len(x_range)):
             for j in range(len(y_range)):
                 dist = np.sqrt((points[:, 0] - x_range[i])**2 + (points[:, 1] - y_range[j])**2)
-                if np.min(dist) < 1:  # INCREASED from 0.8 to 1.2
+                if np.min(dist) < 1.2:
                     mask[j, i] = 1
 
         Z_smooth *= mask
-        Z_smooth[Z_smooth < 0.001] = 0  # REDUCED threshold from 0.01 to 0.001
+        Z_smooth[Z_smooth < 0.001] = 0
         return x_range, y_range, Z_smooth
         
     except Exception as e:
