@@ -126,6 +126,7 @@ The blending of the Four-Seam and Two-Seam fastballs, as well as the Curveball a
 At the MLB level, the final product of a pitcher’s grouped arsenal would look something like this:
 
 ![pic_8](https://github.com/user-attachments/assets/0cfa6c65-b0a8-46b8-8b3e-335c34426e64)
+
 Walker Buehler (and similar) Pitches using MAC’s Logic — Visual from mac-mlb.streamlit.app
 
 
