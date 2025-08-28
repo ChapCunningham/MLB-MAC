@@ -30,7 +30,8 @@ Scanning Features: [Velocity, Induced Vertical Break, Horizontal Break, Spin Rat
 
 The process of deeming pitches as similar or not similar was tricky and took a lot of trial and error. To understand how the math behind finding out if a pitch is similar or not, here is the euclidean distance equation used to find that distance value from one pitch to another.
 
-Press enter or click to view image in full size
+![picture_1](https://github.com/user-attachments/assets/95cf530f-2841-4ba4-987b-e34c26690a7b)
+
 
 *Variables are standardized in order to make everything equal when scanning for similarity* — For each variable, x1 would be the pitcher’s pitch and x2 would be a pitch the hitter has seen
 This distance equation was applied to each pitch that the chosen hitters have seen in the database, then if it fell within our distance threshold, it was added to the similar pitches data frame.
