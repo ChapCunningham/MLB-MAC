@@ -140,7 +140,7 @@ As you can see, MAC did a very good job at finding pitches that are truly simila
 The MAC App
 Now that the math and programming portion of the process is out of the way, onto the fun part. We’ll now walk you through the features that the MAC application allows users to utilize.
 
-Overview
+**Overview**
 
 ![pic_10](https://github.com/user-attachments/assets/73201042-eff0-4afe-b5da-ce470acfe683)
 
@@ -181,8 +181,8 @@ MAC’s Usage
 For our individual purpose, MAC was created to live in a dugout. This summer, we were able to utilize the interface in-game as a living scouting report for our opponents.
 
 ![pic_17](https://github.com/user-attachments/assets/cd9ff11e-54c9-4723-a92e-3d415e49d69c)
-MAC in-game usage
 
+MAC in-game usage
 
 MAC was also used as a scouting report tool. It was the ultimate filter when scouting an opponent. We were able to use it for our pitchers, obviously, but MAC can be reversed engineered to help maximize lineup construction for hitters.
 
