@@ -292,13 +292,10 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
         if missing_cols:
             st.error(f"Missing required columns: {missing_cols}")
             return None, None, None
-    
 
-    
-    # USING CCBL R/OUT AS PREDEFINED - previously was FINDING r/out AFTER filtering for batter/pitcher matchup (invalid approach!)
     LEAGUE_R_OUT = 0.193
     
-    #STEP 3: Predefined league runs per out:
+    #STEP 3: Predefined league runs per out (2 lines up)
     def get_league_environment():
         """Return pre-calculated league environment"""
 
@@ -357,7 +354,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
     
     st.success(f"Optimal clusters found: {optimal_k} clusters")
     
-    #STEP 7: Assign PitchGroup using pitch_name majority
+    #STEP 7: Assign PitchGroup using pitch_name majority (kept TrackMan pitch tags for ability to flip back and forth with valid structured CSVs / NCAA <--> MLB)
     with st.spinner("Assigning pitch groups..."):
         autopitchtype_to_group = {
             'Four-Seam': 'Fastball',
@@ -386,7 +383,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
         # Handle missing pitch_name if any
         pitcher_pitches = pitcher_pitches.dropna(subset=["pitch_name"])
         
-        # Compute most common pitch_name for each cluster
+        # Compute most common pitch_name for each cluster (majority voting system)
         cluster_to_type = {}
         for cluster in pitcher_pitches['PitchCluster'].unique():
             cluster_data = pitcher_pitches[pitcher_pitches['PitchCluster'] == cluster]
@@ -501,7 +498,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
                 weighted_stats.append(usage * rv_per_100)
                 total_weight += usage
                 
-                # Calculate AVG for this group
+                # Calculate AVG for this group (mask method)
                 hit_mask = (
                     (group_pitches["description"] == "hit_into_play") &
                     (group_pitches["events"].isin(["single", "double", "triple", "home_run"]))
@@ -518,13 +515,6 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
                     (group_pitches["events"] != "sac_bunt") & 
                     (group_pitches["events"] != "sac_fly")
                 )
-
-                
-
-                # Try this, might be an easier way to get demominator for batting avg, alternative to above
-                # avg_denom = (
-                #    group_pitches["events"].isin(group_pitches["events"].isin("force_out", "field_out", "double_play", "grounded_into_double_play", "fielders_choice", "fielders_choice_out", "strikeout_double_play", "triple_play", "field_error", "strikeout")
-                # )
                 
                 outs = out_mask.sum()
                 
@@ -598,32 +588,31 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
     return pd.DataFrame(results), pd.DataFrame(group_breakdown), df
 
 def run_silent_mac_analysis(pitcher_name, target_hitters, db_manager):
-    """Silent MAC analysis - no verbose output for Hot Arms batch processing"""
+    """Silent MAC analysis - same process, without text and just spin loader"""
     
-    # === STEP 1: Get Data + Filter by Handedness ===
+    #STEP 1: Get Data + Filter by Handedness
     df = db_manager.get_analysis_data(pitcher_name, target_hitters)
     
     if df.empty:
         return None, None, None
 
-    # NEW: Filter by pitcher handedness right here (SILENT)
+    # Filter by pitcher handedness right here (silent)
     if 'p_throws' in df.columns:
         # Get the input pitcher's handedness
         pitcher_data = df[df["player_name"] == pitcher_name]
         if not pitcher_data.empty and not pitcher_data['p_throws'].isna().all():
             pitcher_throws = pitcher_data['p_throws'].mode().iloc[0]  # Most common value
             
-            # Filter entire dataset to only include same handedness (NO STATUS MESSAGES)
+            # Filter entire dataset to only include same handedness (silent)
             df = df[df['p_throws'] == pitcher_throws].copy()
 
     # Filter for pitcher's data only for clustering 
     pitcher_pitches = df[df["player_name"] == pitcher_name].copy()
     if pitcher_pitches.empty:
-        return None, None, None  # REMOVED st.error message
+        return None, None, None 
     
-    # REMOVED: st.success message about data loading
     
-    # === STEP 2: Clean Numeric Columns ===
+    #STEP 2: Clean Numeric Columns
     numeric_columns = [
         'release_speed', 'IndVertBreak', 'HorzBreak', 'release_spin_rate', 'release_pos_z', 'release_pos_x',
         'delta_run_exp', 'launch_speed', 'launch_angle', 'plate_z', 'plate_x'
@@ -639,10 +628,10 @@ def run_silent_mac_analysis(pitcher_name, target_hitters, db_manager):
     if missing_cols:
         return None, None, None
     
-    # === STEP 3: League Environment ===
+    #STEP 3: League Environment (have to redefine once again for silent iteration)
     LEAGUE_R_OUT = 0.193
     
-    # === STEP 4: Assign wOBA result values ===
+    #STEP 4: Assign wOBA result values
     if 'wOBA_result' not in df.columns:
         df['wOBA_result'] = 0.0
         df.loc[df['events'] == 'walk', 'wOBA_result'] = woba_weights['walk']
@@ -654,14 +643,14 @@ def run_silent_mac_analysis(pitcher_name, target_hitters, db_manager):
     else:
         df['wOBA_result'] = clean_numeric_column(df['wOBA_result'])
     
-    # === STEP 5: Feature sets ===
+    #STEP 5: Feature sets
     scanning_features = ['release_speed', 'IndVertBreak', 'HorzBreak', 'release_spin_rate', 'release_pos_z', 'release_pos_x', 'arm_angle']
     clustering_features = ['release_speed', 'IndVertBreak', 'HorzBreak', 'release_spin_rate', 'spin_axis']
     
     df = df.dropna(subset=scanning_features + ["player_name", "batter_name"])
     pitcher_pitches = pitcher_pitches.dropna(subset=scanning_features + ["player_name", "batter_name"])
     
-    # === STEP 6: Scale features and cluster pitcher's arsenal ===
+    #STEP 6: Scale features and cluster pitcher's arsenal
     StandardScaler, GaussianMixture, euclidean_distances, KneeLocator = get_sklearn_components()
     
     scaler = StandardScaler()
@@ -683,7 +672,7 @@ def run_silent_mac_analysis(pitcher_name, target_hitters, db_manager):
     best_gmm = GaussianMixture(n_components=optimal_k, random_state=42)
     pitcher_pitches['PitchCluster'] = best_gmm.fit_predict(X_cluster)
     
-    # === STEP 7: Assign PitchGroup using pitch_name majority ===
+    #STEP 7: Assign PitchGroup using pitch_name majority
     autopitchtype_to_group = {
             'Four-Seam': 'Fastball',
             '4-Seam Fastball': 'Fastball',
@@ -726,7 +715,7 @@ def run_silent_mac_analysis(pitcher_name, target_hitters, db_manager):
     pitcher_pitches['PitchGroup'] = pitcher_pitches['PitchCluster'].map(cluster_to_type)
     pitch_group_usage = pitcher_pitches['PitchGroup'].value_counts(normalize=True).to_dict()
     
-    # === STEP 8: Tag FULL dataset with MinDistToPitcher ===
+    #STEP 8: Tag FULL dataset with MinDistToPitcher
     scaler_all = StandardScaler()
     df_scaled = scaler_all.fit_transform(df[scanning_features])
     X_pitcher_full = scaler_all.transform(pitcher_pitches[scanning_features])
@@ -738,7 +727,7 @@ def run_silent_mac_analysis(pitcher_name, target_hitters, db_manager):
     df['PitchCluster'] = best_gmm.predict(df_subset_scaled)
     df['PitchGroup'] = df['PitchCluster'].map(cluster_to_type)
     
-    # === STEP 9: Matchup scoring ===
+    #STEP 9: Matchup scoring
     results = []
     group_breakdown = []
     
@@ -903,7 +892,7 @@ def compute_heatmap_stats(df, metric_col, min_samples=3):
         points = valid[["plate_x", "plate_z"]].values
         values = valid[metric_col].values
         
-        # BACK TO GRIDDATA but with much heavier smoothing for KDE-like appearance
+        # BACK TO GRIDDATA but with much heavier smoothing for KDE-like appearance - best approach we've found to handle small and large data samples, simple elif
         Z = griddata(points, values, (X, Y), method='linear', fill_value=0)
         
         # MUCH HEAVIER smoothing to get KDE-like appearance
@@ -961,14 +950,14 @@ def generate_zone_heatmap(df, selected_hitter):
     fig, axes = plt.subplots(3, 3, figsize=(15, 12))
     metrics = [("WhiffFlag", "Whiff Rate"), ("HardHitFlag", "Hard Hit Rate"), ("wOBA_result", "wOBA")]
     
-    # Use simplified 3-category system for heatmaps
+    # Use generalized 3-category system for heatmaps
     pitch_groups = ["Fastball", "Breaking", "Offspeed"]
     
-    # Create simplified pitch group column for heatmap
+    # Create generalized pitch group column for heatmap
     df = df.copy()  # Don't modify the original dataframe
     df["HeatmapPitchGroup"] = df["PitchGroup"].map(heatmap_pitch_groups).fillna("Unknown")
     
-    # Add flags to dataframe
+    # Add flags to df
     df["WhiffFlag"] = (df["description"] == "swinging_strike").astype(int)
     df["HardHitFlag"] = ((df["launch_speed"] >= 95) & df["launch_speed"].notna()).astype(int)
 
@@ -1052,12 +1041,12 @@ def create_comprehensive_visualization(summary_df, breakdown_df, pitcher_name):
     """Create comprehensive visualization matching the Dash app style with percentile lines"""
     fig = make_subplots(rows=1, cols=1)
     
-    # Calculate 25th and 75th percentiles from summary data
+    # Calculate 25th and 75th percentiles from summary data (used for red/green lines on MAC main graphic)
     if not summary_df.empty and 'RV/100' in summary_df.columns:
         percentile_25 = summary_df['RV/100'].quantile(0.25)
         percentile_75 = summary_df['RV/100'].quantile(0.75)
     else:
-        # Fallback values if no data
+        # Safe fallback for if/else
         percentile_25 = -2
         percentile_75 = 2
     
@@ -1115,7 +1104,6 @@ def create_comprehensive_visualization(summary_df, breakdown_df, pitcher_name):
         ))
     
     # Add horizontal dashed lines for 25th and 75th percentiles
-    # 25th percentile = lower RV/100 = worse for hitters = green
     fig.add_hline(
         y=percentile_25,
         line_dash="dash",
@@ -1125,7 +1113,7 @@ def create_comprehensive_visualization(summary_df, breakdown_df, pitcher_name):
         annotation_position="bottom right"
     )
     
-    # 75th percentile = higher RV/100 = better for hitters = red
+
     fig.add_hline(
         y=percentile_75,
         line_dash="dash",
@@ -1173,7 +1161,7 @@ def create_comprehensive_visualization(summary_df, breakdown_df, pitcher_name):
 
 
 def create_movement_chart(movement_df):
-    """Create pitch movement chart matching Dash app style - FIXED for square aspect"""
+    """Create pitch movement chart matching our old Dash app style"""
     movement_df_filtered = movement_df[
         (movement_df["HorzBreak"].between(-50, 50)) & 
         (movement_df["IndVertBreak"].between(-50, 50))
@@ -1198,7 +1186,7 @@ def create_movement_chart(movement_df):
                               "Spin Rate: %{customdata[3]} rpm<extra></extra>"
             ))
     
-    # KEY FIX: Remove width setting and autosize, let scaleanchor handle it
+    # Removed auto size logic for a more interpretable mvmt graphic
     fig.update_layout(
         title="Pitch Movement (HorzBreak vs. IndVertBreak)",
         xaxis=dict(
@@ -1215,7 +1203,7 @@ def create_movement_chart(movement_df):
         ),
         template="simple_white",
         height=600,
-        # Remove width and autosize completely
+        # here is where auto-size logic would go - removed
         margin=dict(l=80, r=80, t=80, b=80)  # Increase margins for better centering
     )
     
@@ -1223,7 +1211,7 @@ def create_movement_chart(movement_df):
 
 # Update the analyze_hot_arms_strategy function to use the silent version:
 def analyze_hot_arms_strategy(hot_arms, selected_hitters, db_manager):
-    """Analyze strategic matchups for available pitchers with minimal output"""
+    """Analyze strategic matchups for available pitchers with minimal feedback"""
     if not hot_arms or not selected_hitters:
         return None, None
     
@@ -1242,7 +1230,7 @@ def analyze_hot_arms_strategy(hot_arms, selected_hitters, db_manager):
             progress_bar.progress(progress)
             status_text.text(f"Analyzing {pitcher} ({i+1}/{len(hot_arms)})")
             
-            # Run SILENT MAC analysis for this pitcher
+            # Run SILENT MAC analysis for pitcher
             summary_df, breakdown_df, _ = run_silent_mac_analysis(
                 pitcher, selected_hitters, db_manager
             )
@@ -1326,7 +1314,7 @@ def create_optimal_usage_recommendations(matchups_df, pitcher_summaries):
         'details': f"RV/100: {best_overall['RV/100']:.2f} (Excellent pitcher advantage)"
     })
     
-    # Worst matchup to avoid
+    # Worst overall matchup
     worst_overall = matchups_df.loc[matchups_df['RV/100'].idxmax()]
     recommendations.append({
         'type': 'Matchup to Avoid',
@@ -1377,10 +1365,13 @@ def main():
         st.error(f"Could not initialize database: {e}")
         st.stop()
 
-    # automatic configuration setup upon launch
+    
+    ##CONFIG START
+    # ============================================================================
+    # Allows us to customize on-launch default player inputs
 
     DEFAULT_CONFIG = {
-        "pitcher": "Flaherty, Jack",  # Change to your preferred default pitcher
+        "pitcher": "Flaherty, Jack",  
         "hitters": [
             "Torres, Gleyber",
             "Soto, Juan",
@@ -1477,7 +1468,7 @@ def main():
         
         # Use configured default hitters
         default_hitters = [h for h in DEFAULT_CONFIG["hitters"] if h in available_batters]
-        # Fallback to first few batters if none of the configured defaults exist
+        # Fallback to first few batters if none of the configured defaults exist - important
         if not default_hitters and available_batters:
             default_hitters = available_batters[:3]
         
@@ -1492,7 +1483,7 @@ def main():
         
         # Use configured default hot arms
         default_hot_arms = [p for p in DEFAULT_CONFIG["hot_arms"] if p in available_pitchers]
-        # Fallback to first few pitchers if none of the configured defaults exist
+        # Fallback to first few pitchers if none of the configured defaults exist - important
         if not default_hot_arms and available_pitchers:
             default_hot_arms = available_pitchers[:5]
         
@@ -1505,8 +1496,7 @@ def main():
     # END OF NEW SELECT INTERFACE 
 
     
-    # Analysis
-    # Analysis button - ONLY runs analysis and stores data
+    # Analysis button - runs analysis and stores data
     if st.button("Run Complete MAC Analysis", type="primary", use_container_width=True):
         if not selected_pitcher or not selected_hitters:
             st.warning("Please select both a pitcher and at least one hitter.")
@@ -1542,7 +1532,7 @@ def main():
                 import traceback
                 st.error(traceback.format_exc())
     
-    # Display persistent results - OUTSIDE button block
+    # Display persistent results - OUTSIDE button block - making sure that different aspects of the app don't rely on each other
     if 'summary_df' in st.session_state and 'breakdown_df' in st.session_state:
         st.markdown("---")
         st.header("Results")
@@ -1599,10 +1589,10 @@ def main():
         # Coverage analysis
     # Replace lines 745-760 with this dynamic approach:
     
-        # Coverage analysis - DYNAMIC VERSION
+        # Coverage analysis
         st.subheader("Coverage Matrix")
         
-        # Get actual pitch groups from the movement data (dynamic)
+        # Get actual pitch groups from the movement data
         actual_pitch_groups = sorted(st.session_state.movement_df["PitchGroup"].unique())
         
         coverage_matrix = pd.DataFrame(
@@ -1621,7 +1611,7 @@ def main():
         st.dataframe(coverage_matrix.astype(int), use_container_width=True)
         st.info("Coverage Matrix shows pitch counts within distance threshold for each hitter vs pitch group combination")
         
-        # Downloads
+        # Downloads for CSV
         st.subheader("Download Results")
         col1, col2, col3 = st.columns(3)
         
@@ -1652,7 +1642,6 @@ def main():
                 "text/csv"
             )
         
-        # Analysis insights
         st.subheader("Analysis Insights")
         
         # Calculate insights
@@ -1683,10 +1672,8 @@ def main():
                 "Lower is better for pitcher"
             )
 
-        # MOVE the Hot Arms analysis section to AFTER the main results display
-    # Place this AFTER the "Analysis Insights" section at the very end:
     
-    # Hot Arms Strategic Analysis
+    # Hot Arms Analysis
     if hot_arms and 'selected_hitters' in st.session_state:
         st.markdown("---")
         st.subheader("Hot Arms Strategic Analysis")
