@@ -13,7 +13,7 @@ from scipy import ndimage
 from scipy.interpolate import griddata
 import base64
 
-# Memory-efficient imports - only import when needed
+# Altered data import function - only loading in sklearn and others when needed to avoid Streamlit crash
 @st.cache_resource
 def get_sklearn_components():
     """Import sklearn components only when needed"""
@@ -33,7 +33,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Constants - EXACT SAME as MAC_module
+# Constants - things brought over from Dash local app (MAC module)
 color_dict = {
     "Fastball": "red",
     "Sinker": "orange",
@@ -51,7 +51,7 @@ distance_threshold = 0.6
 strike_zone = {"top": 3.3775, "bottom": 1.5, "left": -0.83083, "right": 0.83083}
 swing_calls = ["swinging_strike", "foul", "hit_into_play"]
 
-# === EXACT SAME wOBA weights as MAC_module ===
+# pre-define wOBA weights for league (MLB), rather than calculating from database to avoid crash
 woba_weights = {
     'walk': 0.692,
     'hit_by_pitch': 0.723,
@@ -62,7 +62,7 @@ woba_weights = {
 }
 
 def clean_numeric_column(series):
-    """Convert a series to numeric, replacing non-numeric values with NaN - EXACT SAME as MAC_module"""
+    """Convert a series to numeric, replacing non-numeric values with NaN"""
     return pd.to_numeric(series, errors='coerce')
 
 class DatabaseManager:
@@ -77,7 +77,7 @@ class DatabaseManager:
             self.create_database_from_gdrive()
     
     def download_from_gdrive(self, file_id, session=None):
-        """Download file from Google Drive with large file handling"""
+        """Download file from Google Drive"""
         if session is None:
             session = requests.Session()
         
@@ -104,12 +104,7 @@ class DatabaseManager:
             
             st.info("Downloading 2024 data from Google Drive...")
             
-            # 🔽 REPLACE THESE FILE IDs WITH YOUR GOOGLE DRIVE FILE IDs 🔽
-            # To get file ID: Right-click file in Google Drive → Share → Copy link
-            # From: https://drive.google.com/file/d/1ABC123XYZ/view?usp=sharing
-            # Use: 1ABC123XYZ
-            
-            file_id_2024 = "1urUVq6d5fRemlFyPff8h2y6Yml5ka4XN"  # Replace with actual file ID
+            file_id_2024 = "1urUVq6d5fRemlFyPff8h2y6Yml5ka4XN" 
             
             response = self.download_from_gdrive(file_id_2024, session)
             response.raise_for_status()
@@ -122,7 +117,7 @@ class DatabaseManager:
             # Download 2025 data
             st.info("Downloading 2025 MLB data from Google Drive...")
             try:
-                file_id_2025 = "1HNTzW8izUZCEqndb_rUslUdx6Q-0IHJQ"  # Replace with actual file ID
+                file_id_2025 = "1HNTzW8izUZCEqndb_rUslUdx6Q-0IHJQ"  
                 
                 ccbl_response = self.download_from_gdrive(file_id_2025, session)
                 ccbl_response.raise_for_status()
@@ -139,7 +134,7 @@ class DatabaseManager:
             
             progress_bar.progress(70)
             
-            # Create SQLite database
+            # Create SQLite database - use SQL for memory optimization
             conn = sqlite3.connect(self.db_path)
             df.to_sql('pitches', conn, if_exists='replace', index=False)
             progress_bar.progress(85)
@@ -243,11 +238,11 @@ class DatabaseManager:
         return df
 
 def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
-    """Complete MAC analysis with ALL original logic preserved"""
+    """Complete MAC analysis"""
     
     st.info("**MAC Analysis Pipeline Started**")
     
-   # === STEP 1: Get Data + Filter by Handedness ===
+   # STEP 1: Get Data + Filter by Handedness
     with st.spinner("Loading analysis data..."):
         df = db_manager.get_analysis_data(pitcher_name, target_hitters)
         
@@ -255,9 +250,8 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
             st.error("No data found in dataset")
             return None, None, None
         
-        # NEW: Filter by pitcher handedness right here
+        # Filter by pitcher handedness right here - distance testing will clean this, but ensure that R/L consistency is present
         if 'p_throws' in df.columns:
-            # Get the input pitcher's handedness
             pitcher_data = df[df["player_name"] == pitcher_name]
             if not pitcher_data.empty and not pitcher_data['p_throws'].isna().all():
                 pitcher_throws = pitcher_data['p_throws'].mode().iloc[0]  # Most common value
@@ -273,7 +267,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
         else:
             st.warning("p_throws column not found - proceeding without handedness filter")
         
-        # Filter for pitcher's data only for clustering (EXACT SAME)
+        # Filter for pitcher's data only for clustering 
         pitcher_pitches = df[df["player_name"] == pitcher_name].copy()
         if pitcher_pitches.empty:
             st.error(f"No pitches found for pitcher: {pitcher_name}")
@@ -281,7 +275,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
     
     
     
-    # === STEP 2: Clean Numeric Columns (EXACT SAME as MAC_module) ===
+    #STEP 2: Clean Numeric Columns w/ clean_numeric function
     with st.spinner("Cleaning numeric columns..."):
         numeric_columns = [
             'release_speed', 'IndVertBreak', 'HorzBreak', 'release_spin_rate', 'release_pos_z', 'release_pos_x',
@@ -292,7 +286,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
             if col in df.columns:
                 df[col] = clean_numeric_column(df[col])
         
-        # Check for required columns (EXACT SAME)
+        # Check for required columns 
         required_cols = ['release_speed', 'IndVertBreak', 'HorzBreak', 'release_spin_rate', 'release_pos_z', 'release_pos_x', 'pitch_name']
         missing_cols = [col for col in required_cols if col not in df.columns]
         if missing_cols:
@@ -304,7 +298,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
     # USING CCBL R/OUT AS PREDEFINED - previously was FINDING r/out AFTER filtering for batter/pitcher matchup (invalid approach!)
     LEAGUE_R_OUT = 0.193
     
-    # Replace STEP 3 in run_complete_mac_analysis with this:
+    #STEP 3: Predefined league runs per out:
     def get_league_environment():
         """Return pre-calculated league environment"""
 
@@ -312,7 +306,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
 
     r_out = get_league_environment()
     
-    # === STEP 4: Assign wOBA result values (EXACT SAME) ===
+    #STEP 4: Assign wOBA result values w/ woba_weights dict.
     with st.spinner("Assigning wOBA values..."):
         if 'wOBA_result' not in df.columns:
             df['wOBA_result'] = 0.0  # Initialize
@@ -327,7 +321,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
     
 
     
-    # === STEP 5: Feature sets (EXACT SAME) ===
+    #STEP 5: Feature sets
     scanning_features = ['release_speed', 'IndVertBreak', 'HorzBreak', 'release_spin_rate', 'release_pos_z', 'release_pos_x', 'arm_angle']
     clustering_features = ['release_speed', 'IndVertBreak', 'HorzBreak', 'release_spin_rate', 'spin_axis']
     
@@ -337,15 +331,15 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
     #st.info(f"Using clustering features: {clustering_features}")
     #st.info(f"Using scanning features: {scanning_features}")
     
-    # === STEP 6: Scale features and cluster pitcher's arsenal (EXACT SAME) ===
+    #STEP 6: Scale features and cluster pitcher's arsenal
     with st.spinner("Clustering pitcher's arsenal..."):
         StandardScaler, GaussianMixture, euclidean_distances, KneeLocator = get_sklearn_components()
         
-        # Step 1: Fit using clustering features on pitcher's data (EXACT SAME)
+        #6.1: Fit using clustering features on pitcher's data
         scaler = StandardScaler()
         X_cluster = scaler.fit_transform(pitcher_pitches[clustering_features])
         
-        # Step 2: Run BIC loop to find optimal number of clusters (EXACT SAME)
+        #6.2: Run BIC loop to find optimal number of clusters
         bic_scores = []
         ks = range(4, 10)
         for k in ks:
@@ -353,17 +347,17 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
             gmm.fit(X_cluster)
             bic_scores.append(gmm.bic(X_cluster))
         
-        # Step 3: Find the "elbow" (knee point) (EXACT SAME)
+        #6.3: Find the "elbow" (knee point)
         knee = KneeLocator(ks, bic_scores, curve='convex', direction='decreasing')
         optimal_k = knee.elbow or 2  # fallback to 2 if no elbow found
         
-        # Step 4: Fit final GMM using optimal_k and assign cluster labels (EXACT SAME)
+        #6.4: Fit final GMM using optimal_k and assign cluster labels
         best_gmm = GaussianMixture(n_components=optimal_k, random_state=42)
         pitcher_pitches['PitchCluster'] = best_gmm.fit_predict(X_cluster)
     
     st.success(f"Optimal clusters found: {optimal_k} clusters")
     
-    # === STEP 7: Assign PitchGroup using pitch_name majority (EXACT SAME) ===
+    #STEP 7: Assign PitchGroup using pitch_name majority
     with st.spinner("Assigning pitch groups..."):
         autopitchtype_to_group = {
             'Four-Seam': 'Fastball',
@@ -389,10 +383,10 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
             'Screwball': 'Screwball'
         }
         
-        # Handle missing pitch_name if any (EXACT SAME)
+        # Handle missing pitch_name if any
         pitcher_pitches = pitcher_pitches.dropna(subset=["pitch_name"])
         
-        # Compute most common pitch_name for each cluster (EXACT SAME)
+        # Compute most common pitch_name for each cluster
         cluster_to_type = {}
         for cluster in pitcher_pitches['PitchCluster'].unique():
             cluster_data = pitcher_pitches[pitcher_pitches['PitchCluster'] == cluster]
@@ -408,7 +402,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
         
         pitcher_pitches['PitchGroup'] = pitcher_pitches['PitchCluster'].map(cluster_to_type)
         
-        # Compute pitch group usage (EXACT SAME)
+        # Compute pitch group usage
         pitch_group_usage = pitcher_pitches['PitchGroup'].value_counts(normalize=True).to_dict()
     
     st.success(f"Pitch groups assigned: {list(pitch_group_usage.keys())}")
@@ -417,7 +411,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
     usage_text = ", ".join([f"{group}: {usage*100:.1f}%" for group, usage in pitch_group_usage.items()])
     st.info(f"Pitcher's arsenal usage: {usage_text}")
     
-    # === STEP 8: Tag FULL dataset with MinDistToPitcher (EXACT SAME CRITICAL FIX) ===
+    #STEP 8: Tag full dataset with (MinDistToPitcher)
     with st.spinner("Calculating pitch similarity distances..."):
         scaler_all = StandardScaler()
         df_scaled = scaler_all.fit_transform(df[scanning_features])  # FULL dataset
@@ -425,7 +419,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
         distances = euclidean_distances(df_scaled, X_pitcher_full)
         df['MinDistToPitcher'] = distances.min(axis=1)
         
-        # Assign PitchGroup to entire dataset using cluster model (EXACT SAME)
+        # Assign PitchGroup to entire dataset using cluster model
         df_subset_scaled = scaler.transform(df[clustering_features])
         df['PitchCluster'] = best_gmm.predict(df_subset_scaled)
         df['PitchGroup'] = df['PitchCluster'].map(cluster_to_type)
@@ -433,7 +427,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
     similar_pitches_count = (df['MinDistToPitcher'] <= distance_threshold).sum()
     st.success(f"Similarity calculated: {similar_pitches_count:,} similar pitches found (threshold: {distance_threshold})")
     
-    # === STEP 9: Matchup scoring (EXACT SAME LOGIC) ===
+    #STEP 9: Matchup scoring
     with st.spinner("Running matchup analysis..."):
         results = []
         group_breakdown = []
@@ -443,7 +437,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
             weighted_stats = []
             total_weight = 0
             
-            # Initialize accumulators for summary (EXACT SAME)
+            # Initialize accumulators for summary
             total_pitches_seen = 0
             total_swings_seen = 0
             total_whiffs_seen = 0
@@ -458,7 +452,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
             total_woba_den = 0
             
             for group, usage in pitch_group_usage.items():
-                # NOW using full dataset for matchup analysis (EXACT SAME)
+                # Now using full dataset for matchup analysis (applied to hitters)
                 group_pitches = df[
                     (df["batter_name"] == hitter) &
                     (df["PitchGroup"] == group) &
@@ -468,7 +462,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
                 if group_pitches.empty:
                     continue
                 
-                # Clean plate location columns for zone calculation (EXACT SAME)
+                # Clean plate location columns for zone calculation 
                 group_pitches['plate_z'] = clean_numeric_column(group_pitches['plate_z'])
                 group_pitches['plate_x'] = clean_numeric_column(group_pitches['plate_x'])
                 
@@ -487,7 +481,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
                 total_whiffs = group_pitches["Whiff"].sum()
                 total_run_value = group_pitches["delta_run_exp"].sum() if 'delta_run_exp' in group_pitches.columns else 0
                 
-                # Clean exit speed and angle columns (EXACT SAME)
+                # Clean exit speed and angle columns
                 group_pitches['launch_speed'] = clean_numeric_column(group_pitches['launch_speed'])
                 group_pitches['launch_angle'] = clean_numeric_column(group_pitches['launch_angle'])
 
@@ -507,7 +501,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
                 weighted_stats.append(usage * rv_per_100)
                 total_weight += usage
                 
-                # Calculate AVG for this group (EXACT SAME)
+                # Calculate AVG for this group
                 hit_mask = (
                     (group_pitches["description"] == "hit_into_play") &
                     (group_pitches["events"].isin(["single", "double", "triple", "home_run"]))
@@ -536,7 +530,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
                 
                 avg = round(hits / (hits + outs), 3) if (hits + outs) > 0 else np.nan
                 
-                # Accumulate full pitch data for summary (EXACT SAME)
+                # Accumulate full pitch data for summary 
                 total_pitches_seen += total_pitches
                 total_swings_seen += total_swings
                 total_whiffs_seen += total_whiffs
@@ -552,7 +546,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
                 if not np.isnan(num_ground_balls):
                     total_gbs += num_ground_balls
                 
-                # Compute wOBA for this group (EXACT SAME)
+                # Compute wOBA for this group 
                 plate_ending = group_pitches[
                     (group_pitches["events"].isin(["strikeout", "walk"])) |
                     (group_pitches["description"].isin(["hit_into_play", "hit_by_pitch"]))
@@ -562,7 +556,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
                 group_woba_denominator = len(plate_ending)
                 group_woba = round(group_woba_numerator / group_woba_denominator, 3) if group_woba_denominator > 0 else np.nan
                 
-                # Accumulate for summary-level wOBA (EXACT SAME)
+                # Accumulate for summary-level wOBA 
                 total_woba_num += group_woba_numerator
                 total_woba_den += group_woba_denominator
                 
@@ -583,7 +577,7 @@ def run_complete_mac_analysis(pitcher_name, target_hitters, db_manager):
                     "wOBA": group_woba,
                 })
             
-            # Summary calculations (EXACT SAME)
+            # Summary calculations 
             weighted_rv = sum(weighted_stats) / total_weight if total_weight > 0 else np.nan
             hitter_result["RV/100"] = round(weighted_rv, 2)
             hitter_result["AVG"] = round(total_hits / (total_hits + total_outs), 3) if (total_hits + total_outs) > 0 else np.nan
@@ -622,7 +616,7 @@ def run_silent_mac_analysis(pitcher_name, target_hitters, db_manager):
             # Filter entire dataset to only include same handedness (NO STATUS MESSAGES)
             df = df[df['p_throws'] == pitcher_throws].copy()
 
-    # Filter for pitcher's data only for clustering (EXACT SAME)
+    # Filter for pitcher's data only for clustering 
     pitcher_pitches = df[df["player_name"] == pitcher_name].copy()
     if pitcher_pitches.empty:
         return None, None, None  # REMOVED st.error message
@@ -1432,7 +1426,6 @@ def main():
         
         st.header("MAC Algorithm Steps")
         st.markdown("""
-        **EXACT SAME as MAC_module:**
         1. **Load & Clean Data** - Clean numeric columns
         2. **Cluster Input Pitcher** - Initial Clustering Method
         3. **Distance Testing** - Euclidean Distance to find similar pitches
